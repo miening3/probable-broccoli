@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OC 希腊神话原型测试 (完整版)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* --- 样式区域 --- */
+        body { font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; background-color: #0b0f19; color: #e2e8f0; margin: 0; display: flex; justify-content: center; min-height: 100vh; }
+        .container { max-width: 600px; padding: 20px; width: 100%; box-sizing: border-box; }
+        .card { background: #151b2b; border: 1px solid #2d3748; border-radius: 12px; padding: 30px; margin-top: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        h1, h2 { color: #ffe99a; text-align: center; margin-top: 0; }
+        .btn { display: block; width: 100%; padding: 16px; margin: 12px 0; background: #211686; color: white; border: none; border-radius: 8px; font-size: 15px; cursor: pointer; text-align: left; transition: 0.2s; line-height: 1.4; }
+        .btn:hover { background: #285988; transform: translateX(5px); }
+        .hidden { display: none; }
+        
+        /* 结果页样式 */
+        #result-view { text-align: center; }
+        .tag { display: inline-block; background: #22324e; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: #a0aec0; margin: 2px; }
+        #debug-info { font-family: monospace; color: #718096; font-size: 12px; margin-top: 20px; border-top: 1px solid #2d3748; padding-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="start-view" class="card">
+        <h1>OC 神话原型测试</h1>
+        <p style="text-align:center; color:#a0aec0;">从 16 位希腊神祇中，寻找你角色的灵魂投影</p>
+        <p style="text-align:center; margin: 30px 0; font-size: 14px; color: #718096;">请选择测试模式：</p>
+        
+        <button class="btn" style="text-align:center; background: linear-gradient(90deg, #b7791f, #d69e2e);" onclick="start('fantasy')">
+            ⚔️ <b>古典 (25题)</b><br>
+            <span style="font-size:12px; opacity:0.8">希腊神话式答题卷轴</span>
+        </button>
+        
+        <button class="btn" style="text-align:center; background: linear-gradient(90deg, #2b6cb0, #4299e1);" onclick="start('modern')">
+            🏙️ <b>摩登 (20题)</b><br>
+            <span style="font-size:12px; opacity:0.8">日常生活化调查问卷</span>
+        </button>
+    </div>
+
+    <div id="quiz-view" class="card hidden">
+        <div style="display:flex; justify-content:space-between; color:#718096; font-size:14px; margin-bottom:15px;">
+            <span id="progress">进度 1 / 20</span>
+            <span>Soul Syncing...</span>
+        </div>
+        <h2 id="question-text" style="font-size:20px; margin-bottom:30px; font-weight: normal;">题目加载中...</h2>
+        <div id="options-box"></div>
+    </div>
+
+    <div id="result-view" class="card hidden" style="text-align: center;">
+        
+        <p style="color:#718096; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Your Archetype</p>
+        <h1 id="god-name" style="font-size:36px; margin:10px 0; color: #ecc94b; text-shadow: 0 0 10px rgba(236, 201, 75, 0.3);"></h1>
+        <div id="god-title" style="color:#cbd5e1; font-weight:bold; margin-bottom:20px; border-bottom: 1px solid #4a5568; padding-bottom: 15px;"></div>
+        
+        <img id="god-image" src="" style="display:none; width:100%; max-width: 400px; border-radius:10px; margin: 0 auto 20px; border: 1px solid #ecc94b;">
+
+        <p id="god-desc" style="line-height:1.8; text-align:left; color: #e2e8f0; margin-bottom: 25px;"></p>
+
+        <div style="background: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 12px; margin-bottom: 25px; text-align: left; border-left: 3px solid #f6ad55;">
+            <h3 style="color: #f6ad55; margin: 0 0 10px 0; font-size: 16px;">✦ 神话纪事</h3>
+            <p id="god-story" style="font-size: 14px; line-height: 1.6; color: #cbd5e1; margin: 0; font-style: italic;"></p>
+        </div>
+
+        <div style="width: 100%; max-width: 400px; height: 250px; margin: 0 auto 30px; position: relative;">
+            <canvas id="radarChart"></canvas>
+        </div>
+        
+        <button class="btn" style="text-align:center; background: #4a5568;" onclick="location.reload()">↺ 测另一个角色</button>
+        
+        <div id="debug-info" style="font-size: 10px; color: #4a5568; margin-top: 10px;"></div>
+    </div>
+<script>
+    // ================= 1. 神明数据库 (16位) =================
+    const GODS = [
+        { id: "zeus", name: "宙斯 (Zeus)", title: "雷霆 · 秩序 · 统治",  // 👇 新增的 story 字段
+            story: "他是率领兄弟姐妹（奥林匹斯神）推翻其父克洛诺斯（提坦神）的统治的第三代神王。在关键战役“提坦之战”中，他释放了被囚禁的独眼巨人与百臂巨人，获得了雷霆作为武器，成为掌管雷霆的主神，除了雷霆，他也是誓言之神。他有一条特殊的圣物——赫拉的金腰带，并非用于诱惑，而是能“使任何神明或凡人无法违背誓言”。在《伊利亚特》中，赫拉曾借用此腰带让宙斯发誓不干预特洛伊战事，随后设计欺骗了他。这位众神之王被自己的誓言约束，只能眼睁睁看着战局逆转，暴怒却无法行动。逸闻：他的风流韵事也是无数英雄传奇的源头。常变化形态追求凡间女子或女神，如化为金雨与达那厄相会，变作天鹅接近勒达，化身公牛诱拐欧罗巴。",desc: "【天生的王权者】你的 OC 无法忍受屈居人下。TA 拥有建立新秩序的魄力，习惯掌控局势。在故事中，TA 往往是团队的绝对核心，但有时会因为独断专行而伤害到身边的人也会伤到自己。", stats: { E: 9, O: 8, A: 9, L: 6, D: 10 } },
+        { id: "hera", name: "赫拉 (Hera)", title: "权杖 · 契约 · 嫉妒", story: "她是一位立体且复杂的神明，她因宙斯的不忠，她将对情敌及他们子嗣的迫害升华为艺术。最著名的受害者是赫拉克勒斯（宙斯与阿尔克墨涅之子），从他出生起便派毒蛇加害，后使其发疯杀害亲人，并在他完成“十二试炼”过程中屡设障碍。她因“金苹果之争”中特洛伊王子帕里斯将“献给最美女神”的金苹果判给了阿佛洛狄忒，赫拉与雅典娜怀恨在心，在特洛伊战争中坚定地站在希腊联军一边，运用神力多次干预战局。但同时她被称为 “阿尔戈斯的赫拉” ，是城邦至高无上的守护神。著名的祭祀活动包括每四年举行一次的 “赫拉节” ，期间会举行全希腊的体育与音乐竞赛（与奥林匹亚的宙斯节对应）。她在此地的圣物是孔雀和石榴（象征多产与不朽）。在伊阿宋寻找金羊毛的旅程中，赫拉出人意料地成为了最主要的庇护神。她指示雅典娜帮助建造“阿尔戈号”，以助其成功。她是众女神的领导者与保护者，是古老的天空与多产女神，城邦与文明的坚定守护者，拥有可怕报复心与战略谋略的复仇者，其动机源于对荣誉、尊严和合法权利的极端维护。她的怒火并非凡俗的醋意，而是宇宙秩序被僭越时，法则本身发出的雷霆。嫉妒，不过是人类以自己渺小的情感，对一位守护神圣契约的女神，所做的最浅薄的注脚。",desc: "【完美的维护者】你的 OC 极度重视“忠诚”。TA 拥有高贵的自尊心，容不得半点背叛。TA端庄大气，但如果底线被触碰，TA 会展开最持久、最可怕的报复。", stats: { E: 7, O: 10, A: 6, L: 4, D: 9 } },
+        { id: "poseidon", name: "波塞冬 (Poseidon)", title: "风暴 · 海洋 · 震怒",story:"他是掌管海洋的主神，同时也掌地震与马匹，他因奥德修斯刺瞎了他儿子独眼巨人波吕斐摩斯，他在英雄归家的十年航程中降下无数风暴与灾难，是《奥德赛》中主要的阻挠力量。他在与雅典娜竞争雅典守护神时，他用三叉戟击打卫城山岩，涌出咸水泉（象征海上霸权）。雅典娜则种下第一棵橄榄树（象征和平与繁荣）。雅典人选择了橄榄树，雅典娜获胜，城市以她命名。波塞冬大怒，用洪水淹没平原。除了与雅典娜竞争雅典，波塞冬还曾试图为阿尔戈斯建城，并展示神迹：用三叉戟击地，涌出咸水泉（象征海军力量）。但当地女神赫拉也宣称主权，宙斯裁定赫拉获胜。波塞冬怒而洪水淹没阿尔戈斯，直到献祭安抚才平息。这反映了他对陆权城邦的渴望与屡次受挫的尴尬。", desc: "【情绪的暴君】你的 OC 像大海一样变幻莫测。TA 护短、情绪化、拥有毁灭性的力量。TA 讨厌复杂的规矩，信奉力量至上。爱 TA 的人会得到整个海洋，恨 TA 的人会被海啸吞没。", stats: { E: 8, O: 3, A: 9, L: 3, D: 9 } },
+        { id: "athena", name: "雅典娜 (Athena)", title: "战略 · 智慧 · 胜利", story:"她是从父亲宙斯裂开的头颅中跳出的智慧与战争女神，身披盔甲，手持长矛与埃癸斯神盾，发出震天战吼。这象征她集智慧与力量于一体，且直接源自最高权力。她还是处女神，但她的处女身份并非关于贞洁道德，而是象征精神的绝对自主与完整性，不为情欲或母职所分心。这使她成为城邦文明的理想化身——自给自足，逻辑严密，防御性强。她在《奥德赛》中，她是奥德修斯最坚定的支持者。她并非直接替他解决困难，而是引导他的智慧：建议他伪装成乞丐，在关键时刻给他勇气和灵感，并最终帮助他团聚与复仇。她欣赏的是奥德修斯“诡计多端的智慧”，这正是她自身特质的镜像。但完美正面的代表另有其人，在阿拉克涅的编织比赛,玛尔叙阿斯的剥皮等事中她代表着掌控和压迫",desc: "【理性的破局者】你的 OC 从不打无准备之仗。在团队陷入绝境时，TA 是唯一能保持冷静并想出对策的人。TA 的正义带有冷酷的逻辑色彩，甚至为了大局可以牺牲小我。", stats: { E: 6, O: 9, A: 7, L: 10, D: 7 } },
+        { id: "ares", name: "阿瑞斯 (Ares)", title: "战争 · 暴力 · 狂乱",story:"他是被需要的“污点”，他是不可或缺的“战争之神“也是 被众神鄙视的“麻烦精”，战争是古希腊文明的常态，但阿瑞斯代表的并非雅典娜式的“为城邦荣耀的理性战略战争”，而是战争中最原始、最令人不安的部分：血腥的屠杀、战场上的狂怒、毁灭的纯粹快感与伴随的恐惧。他是暴力的物理化身，不服务于正义、智慧或守护，它本身就是目的。因此，众神（尤其是代表智慧与秩序的雅典娜）都鄙夷他。在《伊利亚特》中，他被描绘成一个鲁莽、爱哭、甚至有点愚蠢的丑角。被凡人英雄狄俄墨得斯刺伤后，他嚎哭着逃回奥林匹斯向宙斯告状，宙斯却厌恶地说：“别坐在我面前哭诉，你这众神中最可恨的家伙！”可当海神波塞冬的儿子强奸了他的女儿阿洛佩时，阿瑞斯杀死了这个强奸犯。波塞冬则杀死了阿洛佩。阿瑞斯为此痛苦万分，化身凡人进行复仇。这个故事展现了他作为父亲和家族荣誉守护者的一面，其暴力在此情境下就有了某种“正义”的色彩。补充：这位狂暴之神也是雅典司法制度的“催化剂”，颇具讽刺意味。（作者的碎碎念：作者最喜欢的是他与阿佛洛狄忒的私情，一种美与暴力的完美结合。同样的强大，同样的非理性，是自然的精酿，原始而纯粹。", desc: "【纯粹的战士】你的 OC 是一把没有剑鞘的利刃。TA 思考问题的方式很简单：谁挡路，就砍谁。TA 冲动、热血，也许不够圆滑聪慧，但绝对是最让敌人胆寒的先锋。", stats: { E: 8, O: 2, A: 10, L: 0, D: 6 } },
+        { id: "apollo", name: "阿波罗 (Apollo)", title: "太阳 · 预言 · 艺术",story:"他是理性、预言、音乐、医学与太阳之神，是文明的化身。他用巨蟒杀死了盘踞在德尔斐的巨蟒皮同，在此建立了希腊世界最著名的德尔斐神庙，通过女祭司皮提亚传达神谕。但他的力量并非总是带来和谐，常常体现为一种不容置疑、甚至冷酷的绝对秩序。作为太阳神，他带来光明，驱散黑暗。但他的光明也能灼烧与毁灭。特洛伊战争中，他因希腊人侮辱其祭司，向联军营地射去“瘟疫之箭”，造成大规模死亡。他的净化有时意味着用无情手段扫除不洁。 与山林精灵玛尔叙阿斯比赛音乐（阿波罗的七弦琴 vs. 玛尔叙阿斯的双管笛）。阿波罗获胜后，竟将失败者活生生剥皮，并将其皮钉在树上。他是分寸与过度的结合体。 他宣扬“认识你自己”和“凡事勿过度”，但他自身的激情和报复却常常越过界限。", desc: "【耀眼的明星】你的 OC 无论走到哪里都是焦点。TA 才华横溢，可能是艺术家或预言家。TA 看起来完美无缺，但内心深处可能极其骄傲疯狂，受不了一点点的无视。", stats: { E: 10, O: 7, A: 5, L: 6, D: 9 } },
+        { id: "artemis", name: "阿耳忒弥斯 (Artemis)", title: "月亮 · 狩猎 · 独立",story:"她是月光，另有一名，为塞勒涅，她是掌管狩猎的神祗，她是所有野生动物的保护者，尤其爱护幼崽。但她也狩猎它们。她是绝对的贞洁和天真，她是新生儿与产妇的保护神，母勒托在怀孕时被赫拉迫害，无处分娩。阿耳忒弥斯出生后，立刻协助母亲接生阿波罗，展现了早熟与保护者的特质。因此她是新生儿与产妇的保护神，妇女常向她祈求顺产。这与她的处女身份形成微妙平衡：她守护生命的开端，但自身不参与生育。然而，她的箭矢也能带来 “轻柔的死亡”——让妇女在分娩中突然无痛地逝去。这并非恶意惩罚，而是一种快速的、属于她的“狩猎式”终结。逸闻：传说猎人在梦中撞见美人沐浴是不详的象征，该说法源于猎人阿克泰翁偶然看到她沐浴。她没有亲手杀他，而是向他泼水，将他变为一头鹿。阿克泰翁被自己的猎犬撕碎这个小故事。", desc: "【高傲的独行侠】你的 OC 并不需要任何人。TA 像月光一样清冷，与其在人群中虚与委蛇，TA 宁愿在荒野中与野兽为伍。TA 对异性或情感纠葛保持着警惕与距离。", stats: { E: 2, O: 5, A: 8, L: 6, D: 8 } },
+        { id: "hephaestus", name: "赫菲斯托斯 (Hephaestus)", title: "火焰 · 锻造 · 匠心",story:"他是自我定义的独特存在，他是火神、锻造之神、工匠之神。他天生跛足，是众神中唯一有显著身体缺陷的，也因此成为被轻视和嘲笑的对象。他经历了两次抛弃，第一次被弃：出生时因跛足被父亲宙斯扔下奥林匹斯山，落入海中，被海洋女神忒提斯收养。这奠定了他“弃儿”的底色。 第二次坠落：在一次父母争吵中，他试图维护母亲赫拉，却被暴怒的宙斯亲手抓住脚踝，再次扔下神山。这次坠落持续了一整天，最终他摔在利姆诺斯岛，加重残疾。但重伤的他并未屈服。他在这座孤岛上建立起了最早的铁匠铺，锻造出无数精美器物。当他带着这些作品和一身无可替代的技艺回归奥林匹斯时，众神不得不以礼相待。他从一个可以被随意丢弃的“残次品”，变成了一个必须被请回来的 “关键供应商” 。逸闻：在发现妻子阿佛洛狄忒与战神阿瑞斯私通后，他没有选择暴怒或不自量力地选择与阿瑞斯决斗，而是秘密锻造了一张看不见、挣不脱的金属网，将二人当场捉住，并邀请全体众神前来围观。这并非简单的羞辱，而是一次精妙的 “权力演示” ：他用自己无可匹敌的技艺，将代表“美”与“暴力”的两位主神变成展品，迫使整个神界承认，他们的风流游戏，在他的绝对技艺面前不堪一击。最终，他接受了波塞冬的调解和赔偿，既捍卫了尊严，又获得了实利，展现了惊人的政治头脑。", desc: "【沉默的创造者】你的 OC 不善言辞，甚至可能有些自卑，但拥有一双化腐朽为神奇的手。TA 把所有的情感都注入到了作品中，是团队里最可靠的后盾。", stats: { E: 1, O: 8, A: 3, L: 9, D: 2 } },
+        { id: "hermes", name: "赫耳墨斯 (Hermes)", title: "信使 · 商业 · 欺诈", story:"他是......一位中介?他即代表光明与商业，也掌管盗窃且生于黑夜，他打破规则，模棱两可，却也也维护秩序。他的诞生就是他神格的全部体现，他出生几小时后，他就爬出摇篮，偷走阿波罗的牛群。为掩盖踪迹，他发明了捆在牛蹄上的扫帚和倒穿的草鞋。当阿波罗找上门，他躺在摇篮里天真地撒谎。最终，他用自己发明的龟壳七弦琴贿赂阿波罗，达成和解。他管理死灵的引渡，调解诸神的冲突......（掰手指）。总之是一位很有趣的神祗。后世“赫尔墨斯主义”的哲学源头就是他",desc: "【狡黠的中间人】你的 OC 是社交场上的变色龙。TA 聪明绝顶，擅长谎言与交易。没有人能真正抓得住 TA，因为 TA 永远留着后路。正义与邪恶？那取决于谁给的价码高。", stats: { E: 9, O: 9, A: 1, L: 9, D: 3 } },
+        { id: "aphrodite", name: "阿佛洛狄忒 (Aphrodite)", title: "爱欲 · 美貌 · 诱惑", story:"她即爱欲，在柏拉图的会饮篇中提到，她有两种诞生传说，一是由天神乌拉诺斯被阉割后的精血落入海中所生，是超越性别的纯粹,古老而原始的存在，二说其由宙斯与海洋女神狄俄涅所诞，是世俗的，肉体的，代表人间的欢愉。她的不可抗,非理性和创造与毁灭的特质，都在她的故事中被展示：在珀琉斯与忒提斯的婚礼上，她与赫拉、雅典娜争夺“献给最美女神”的金苹果。特洛伊王子帕里斯将苹果判给了她，以换取 “世上最美的女人” 海伦。这是伊利亚特的起始导致了特洛伊战争；一位崇拜贞洁狩猎女神阿耳忒弥斯、鄙视爱与婚姻的王子拒绝了她的求爱，为了惩罚他，她使他继母对其产生疯狂爱欲，引发一连串悲剧，最终导致王子惨死。她最复杂之处在于她并不代表爱情，她代表的是爱欲，一种本能。逸闻一说：在一些斯巴达的古老崇拜中：她是 “女战士阿佛洛狄忒” ，与暴力、战争和胜利相关。这印证了她古老起源中的强大与危险性，远非后来罗马维纳斯的柔美形象可比。",desc: "【欲望的化身】你的 OC 明白“美貌”就是最锋利的武器。TA 随心所欲地操纵着他人的情感，看似柔弱，实则任性且强大。在 TA 眼里，世界是围绕着爱与被爱旋转的。", stats: { E: 9, O: 2, A: 4, L: 1, D: 8 } },
+        { id: "demeter", name: "得墨忒耳 (Demeter)", title: "农业 · 母亲 · 执念",story:"她的故事始于四季，她将第一粒麦种、犁具和战车赠予厄琉西斯王子特里普托勒摩斯，命他周游世界，教授人类农业，传播定居，历法与社会秩序。她的神话核心——珀耳塞福涅被劫，一场男性神祇的共谋的犯罪，得墨忒耳听到女儿的呼救，陷入巨大的悲痛与疯狂。她放下掌管农业的神职，手持火炬，走遍大地寻找女儿，致使万物停止生长，大地荒芜，面临灭世饥荒。在手持火炬的赫卡忒帮助下，得墨忒耳得知真相。她向宙斯施压，要求带回女儿。众神之王宙斯不得不下令哈迪斯放人。然而，珀耳塞福涅在冥界已吃了四颗石榴籽——这意味着她与冥界建立了纽带，必须返回。最终三方达成妥协：珀耳塞福涅每年有三分之一的时间留在冥界作冥后，其余时间回到母亲身边。", desc: "【悲伤的大地】你的 OC 充满了母性的光辉，愿意滋养万物。但如果有谁夺走了 TA 珍视的东西，TA 会让整个世界陪葬。TA 的爱沉重而执着。", stats: { E: 3, O: 7, A: 2, L: 4, D: 6 } },
+        { id: "hestia", name: "赫斯提亚 (Hestia)", title: "灶火 · 家庭 · 守护",story:"他是宙斯的长姐，克洛诺斯与瑞亚的长女，灶火与家庭之神。作为被父亲第一个吞入腹中、最后一个吐出的孩子，她是奥林匹斯秩序的起点与归宿。在提坦之战后，她本属十二主神之列，却为避让波塞冬与阿波罗的求婚，指宙斯之首起誓永保贞洁，终身不嫁。宙斯因此赐她殊荣：“人间每座家灶的中庭，众神每次献祭之前，她最先受祭”。她有一条特殊的圣物——永不熄灭的圆形炉火。这并非取暖之用，而是家庭与城邦的凝聚核心：婴儿须被抱着绕行此火方被家庭接纳，殖民者须携母邦之火点燃新灶才成合法城邦。在《伊利亚特》中，特洛伊战火纷飞时，她坐在奥林匹斯炉火旁沉默不语——因为她是宇宙秩序的静默中心，最无需言语的存在。逸闻：她是十二主神中唯一几乎没有叙事神话的神。她从不参与冒险、复仇或恋爱。在《荷马颂歌致阿佛洛狄忒》中，她是爱欲之神唯一无法征服的例外——炉火超越了欲望的扰动，是秩序与恒常的绝对化身。", desc: "【温暖的避风港】你的 OC 是纷乱世界中唯一的净土。TA 不争不抢，甚至主动放弃权力，只为了守护大家的归处。所有人都会在疲惫时想起 TA。", stats: { E: 2, O: 9, A: 0, L: 6, D: 1 } },
+        { id: "dionysus", name: "狄俄尼索斯 (Dionysus)", title: "狂欢 · 癫狂 · 解放",story:"他是宙斯与凡人公主塞墨勒之子，唯一一位母亲为凡人的奥林匹斯主神，酒神与狂欢之神。因赫拉嫉妒，其母被宙斯的真身雷霆烧死，他被宙斯缝入自己的大腿中继续孕育，足月后二次出生，故称“出生两次的神”。他有一条特殊的圣物——葡萄藤与酒液。这并非仅供宴饮之乐，而是能同时带来狂喜与疯狂、解放与毁灭的双刃之力。在《酒神的女信徒》中，忒拜国王彭透斯拒绝承认他的神性，狄俄尼索斯令王后阿高埃在迷狂中将亲生子当作狮子撕成碎片。神性遭到否定时，他的恩赐会化为最可怖的惩罚。在荷马颂歌中，他曾被海盗劫持。海盗欲将他卖为奴隶，却见葡萄酒自船板涌出，葡萄藤缠绕桅杆攀援而上。狄俄尼索斯化为雄狮扑向船长，海盗们惊骇跳海，悉数变为海豚。这是他少有的温和神迹——因为那些海盗至少承认了他的神性。逸闻：他是十二主神中最晚被接纳、最“外来”的神。其崇拜曾遭希腊本土势力抵制，却最终冲破藩篱占据一席，甚至取代赫斯提亚进入十二神之列。这象征了理性秩序（阿波罗精神）永远无法压抑的非理性冲动——那些被文明排斥的疯狂、激情与本能，终将以酒神之名归来。", desc: "【清醒的疯子】你的 OC 游走在天才与疯子之间。TA 追求极致的快乐和痛苦，能轻易煽动群体的情绪。TA 代表了混乱的生命力，打破一切死气沉沉的规则。", stats: { E: 10, O: 0, A: 5, L: 2, D: 5 } },
+        { id: "pan", name: "潘 (Pan)", title: "荒野 · 恐慌 · 本能",story:"他是赫耳墨斯与一位宁芙之子，半人半羊的荒野之神，牧群、山林、猎人与自然恐惧的主宰。他出生时浑身覆毛、头生羊角、蹄足长须，母亲见他这般模样惊恐弃之，赫耳墨斯却将他带上奥林匹斯，诸神见他皆大笑不止，遂名潘（意即“一切”），因这笑声令众人皆喜。他有一条特殊的圣物——叙任克斯排箫。这并非普通的乐器，而是对不可得之爱的永恒叹息。他追逐神女叙任克斯，她为逃避他的求欢，在河边化为芦苇。潘割下芦苇，制成长短不一的排箫，从此每一缕箫声都是他对那消逝身影的无尽呼唤。这箫声能令牧群安歇，也能在林间回荡出莫名的恐惧——即后世所称 “潘的恐惧” ，那种在荒野深处突然袭来、无缘无故的颤栗。在希波战争中，传说雅典使者在前往斯巴达途中于帕耳涅斯山遇潘。潘问他为何雅典人从不敬拜他，他始终对雅典友善。战后雅典人为他建立神庙与 yearly祭祀，以谢他在马拉松之战中施以恐慌于敌军的恩助。这揭示了他的双重本质：他能让牧者安然度夜，也能让最精锐的军队不战自溃——因为自然之力，本就可亲可怖，一体两面。逸闻：他是希腊众神中唯一明确死过的神。罗马时期，传闻一艘船行至帕克西岛时，有神秘声音高呼：“大潘死了！” 哀哭声响彻海面。这被后世解读为古代世界终结的寓言——当最后的自然恐惧消逝，旧神时代便随之落幕。但更古老的信念认为，潘从未死去：他只是回归了那片他始终代表的、永远沉默而充满颤栗的荒野本身。", desc: "【原始的野兽】你的 OC 完全未被文明驯化。TA 追随本能，既令人感到恐惧（Panic），又充满野性的吸引力。TA 属于森林深处，不属于人类的城市。", stats: { E: 5, O: 0, A: 4, L: 1, D: 2 } },
+        { id: "hades", name: "哈迪斯 (Hades)", title: "冥王 · 财富 · 隐匿", story:"他是克洛诺斯与瑞亚的长子，宙斯与波塞冬之兄，冥界之主、地下财富的掌管者。提坦之战后，三兄弟抓阄划分宇宙，他分得冥界，从此统治亡魂之境，极少踏足奥林匹斯。他是唯一不曾居于奥林匹斯山的奥林匹斯神。他有一条特殊的圣物——库内埃（隐身盔）。这并非寻常盔甲，而是独眼巨人在提坦之战中为他锻造的神器，能使佩戴者完全隐形。他在战争中借此潜入克洛诺斯身后，为胜利奠定关键一击。后世这顶头盔多次借予英雄：珀耳修斯用它斩杀美杜莎，赫耳墨斯在战斗中佩戴它，雅典娜亦曾戴它隐去身形。在《伊利亚特》中，特洛伊战争激烈之时，他始终不曾离开冥界半步。他不是旁观者，而是真正的缺席者——因为死亡的领域必须保持绝对中立。但当赫拉克勒斯为夺取地狱犬闯入冥界时，他以箭伤这位英雄；当俄耳甫斯的琴声令亡灵垂泪时，他第一次被打动，破例允许欧律狄刻返回人间。这位被凡人畏惧的冥王，亦有其罕见的恻隐。逸闻：他是希腊神话中最专一的神。他强掳珀耳塞福涅为后，却从未有过其他情人。当阿佛洛狄忒的情人阿多尼斯死后，他拒绝将其归还阳间，令爱欲之神也无可奈何。而珀耳塞福涅吃下的那几颗石榴籽，是他精心设计的契约——他深知她终将离去，但只需这几粒果实，她便注定每年重返他的身边。这不是单纯的劫掠，而是一个孤寂的神对陪伴的永恒执念。",desc: "【深渊的主宰】你的 OC 沉默寡言，喜怒不形于色。TA 坐拥巨大的资源，却习惯在阴影中注视一切。比起表面的喧闹，TA 更在意永恒的结果。", stats: { E: 0, O: 9, A: 6, L: 8, D: 8 } },
+        { id: "hecate", name: "赫卡忒 (Hecate)", title: "魔法 · 十字路口 · 迷雾", story:"他是提坦神珀耳塞斯与星辰女神阿斯忒里亚之女，宙斯也敬畏的魔法与幽灵女神、三岔路口与冥界入口的主宰。提坦之战中，她是唯一保持中立的提坦神，战后宙斯不仅保留其权柄，更赐予她掌管天、地、海三界交汇之域的特权。她有一条特殊的圣物——双火炬。这并非照明之用，而是能照亮冥界幽暗、驱散亡灵迷雾的神圣之光。在得墨忒耳寻找珀耳塞福涅时，是赫卡忒手持火炬听见了少女的呼救，随后陪同得墨忒耳前往赫利俄斯处询问真相。从此她成为冥界的伴随者，每夜率领亡魂与鬼犬在十字路口巡行。在荷马颂歌致得墨忒耳中，她是唯一主动伸出援手的神祇。当得墨忒耳以老妇形象在人间流浪时，赫卡忒主动迎上前去，以温言抚慰，并坚持陪她一同面见太阳神。她是那位在至暗时刻最先点亮火光的人。此后她成为所有在歧路徘徊者的庇护者——人们每月新月时在十字路口献上“赫卡忒之餐”，以求她引导善灵、驱除恶祟。逸闻：她是希腊神话中唯一被塑造成三体形象的神。其雕像常为三背相向的三位女身，各执火炬、剑或蛇，注视三个方向。这并非表示她有三位一体，而是象征她同时看顾三岔路口的每一条路——她是那些站在命运交叉口、不知何去何从者的守护神。她不是规则本身，而是规则的边界，是秩序与混沌、生与死、已知与未知相遇的那道裂隙。",desc: "【神秘的导师】你的 OC 掌握着常人无法理解的知识。TA 总是站在人生的十字路口，指引方向，却不插手结局。TA 神秘莫测，令人敬畏，永远看不透真心。", stats: { E: 1, O: 4, A: 6, L: 9, D: 9 } }
+    ];
+
+    // ================= 2. 题库A：史诗/奇幻版 (20题) =================
+    const QUESTIONS_FANTASY = [
+        { text: "1. 敌军压境，你的 OC 作为核心战力，第一反应是？", options: [ { text: "正面迎击！用绝对的力量碾碎他们。", scores: { A: 3, E: 2, L: -1 } }, { text: "寻找地形优势，布置陷阱，准备智取。", scores: { L: 3, O: 2, A: -1 } }, { text: "制造混乱和恐慌，让敌人在疯狂中自毁。", scores: { O: -3, L: 2, D: 1 } }, { text: "优先疏散弱者，战斗是为了守护而非杀戮。", scores: { A: -2, O: 2, D: -1 } } ] },
+        { text: "2. 在诸神云集的晚宴上，TA 处于什么位置？", options: [ { text: "舞台中央，享受目光，如鱼得水。", scores: { E: 3, D: 1 } }, { text: "角落的阴影里，冷眼观察每个人的伪装。", scores: { E: -3, L: 2, D: 2 } }, { text: "在人群穿梭，交换情报，结交盟友。", scores: { E: 2, L: 2, O: -1 } }, { text: "觉得吵闹，只想找理由溜出去透气。", scores: { E: -2, O: -1 } } ] },
+        { text: "3. TA 认为理想的爱情（或羁绊）是什么样的？", options: [ { text: "绝对的占有。你是我的，谁也别想染指。", scores: { A: 2, D: 3, E: 1 } }, { text: "一场追逐游戏。过程比结果更有趣。", scores: { E: 2, O: -2, L: -1 } }, { text: "默默守护。不需要回报，只要你安好。", scores: { E: -2, A: -2, O: 2 } }, { text: "理性的合伙人。我们是并肩作战的战友。", scores: { L: 3, O: 1, E: -1 } } ] },
+        { text: "4. 被信任的人背刺一刀，TA 的内心独白是？", options: [ { text: "“我要让他付出百倍的代价！”（暴怒）", scores: { A: 3, O: -1, L: -2 } }, { text: "“早就预料到了，幸好我留了后手。”（冷漠）", scores: { L: 3, E: -1, O: 1 } }, { text: "“为什么...是我哪里做得不够好吗？”（自省）", scores: { A: -2, D: -2, O: 2 } }, { text: "“虽然很痛，但必须及时止损。”（克制）", scores: { O: 3, L: 2, A: 1 } } ] },
+        { text: "5. 意外获得了改写规则的神器，TA 会？", options: [ { text: "建立一个严密、公平、没有犯罪的完美世界。", scores: { O: 3, A: 1, D: 2 } }, { text: "打破所有束缚，让世界回归自由与狂欢！", scores: { O: -3, E: 2, A: 1 } }, { text: "太危险了，必须藏起来或者销毁。", scores: { L: 2, O: 1, A: -2 } }, { text: "用它换取财富、秘密或我想要的东西。", scores: { L: 2, E: 1, O: -1 } } ] },
+        { text: "6. 世界即将毁灭，作为最后的防线，TA 选择？", options: [ { text: "独自面对终焉，这是英雄的宿命。", scores: { D: 3, E: -1, A: 2 } }, { text: "发表最后的演说，带领所有人一起冲锋。", scores: { E: 3, D: 2, O: 1 } }, { text: "用神力为幸存者打造最后的庇护所。", scores: { A: -3, O: 2, D: -1 } }, { text: "毁灭吧，我在毁灭中看到了新生的美。", scores: { O: -3, L: -1, A: 1 } } ] },
+        { text: "7. 没有任务时，TA 最可能在做什么？", options: [ { text: "打磨武器、锻炼技艺，时刻准备着。", scores: { A: 1, O: 2, L: 1 } }, { text: "举办派对、喝酒、享乐。", scores: { E: 3, O: -2 } }, { text: "在图书馆看书，或在森林发呆。", scores: { E: -2, L: 1 } }, { text: "打理家务，照顾植物或小动物。", scores: { A: -2, O: 1, E: -1 } } ] },
+        { text: "8. 触碰了哪一点，会让 TA 彻底翻脸？", options: [ { text: "我的尊严。哪怕我错了，你也得跪着。", scores: { D: 3, E: 1 } }, { text: "我的家人/我在意的人。动他们就是找死。", scores: { A: 2, O: 1, L: -1 } }, { text: "我的自由。别想试图关住我。", scores: { O: -3, A: 1 } }, { text: "我的作品。那是我灵魂的一部分。", scores: { L: 2, E: -2 } } ] },
+        { text: "9. 如果必须要复仇，TA 会怎么做？", options: [ { text: "当场报复，绝不隔夜，雷霆手段。", scores: { A: 3, L: -1 } }, { text: "精心设局，让他身败名裂，生不如死。", scores: { L: 3, A: 1, O: 1 } }, { text: "诅咒他，用魔法让他精神崩溃。", scores: { D: 2, E: -1, A: 1 } }, { text: "无视他。他不配让我浪费时间。", scores: { D: 3, A: -2 } } ] },
+        { text: "10. TA 认为自己存在的意义是？", options: [ { text: "统治与秩序。世界需要强者。", scores: { D: 3, O: 2 } }, { text: "创造与美。让世界更丰富多彩。", scores: { E: 2, A: -1 } }, { text: "探索未知。揭开所有谜题。", scores: { L: 3, E: -1 } }, { text: "随心所欲。活在当下就是意义。", scores: { O: -2, E: 1 } } ] },
+        { text: "11. 陨落之后，希望人们怎么评价 TA？", options: [ { text: "“他是最伟大的神，无人能及。”（传奇）", scores: { D: 3, E: 1 } }, { text: "“他是个疯子，但他活得真精彩。”（争议）", scores: { O: -2, E: 2 } }, { text: "最好没人记得我，我只属于我自己。（遗忘）", scores: { E: -3, D: 1 } }, { text: "“因为有他，生活才变好了。”（感恩）", scores: { A: -2, O: 2 } } ] },
+        { text: "12. 用一个词形容 TA 的灵魂底色？", options: [ { text: "绝对的冷静与理智", scores: { L: 5, A: -2 } }, { text: "不可遏制的冲动与激情", scores: { A: 2, E: 3, L: -2 } }, { text: "极致的温柔与包容", scores: { A: -3, D: -2, O: 2 } }, { text: "无法预测的神秘", scores: { D: 2, E: -2, O: -1 } } ] },
+        { text: "13. 你的 OC 更愿意住在哪里？", options: [ { text: "繁华的都市，人类文明的中心。", scores: { O: 2, L: 2, E: 1 } }, { text: "人迹罕至的深山老林，与野兽为伍。", scores: { O: -2, E: -2, A: 1 } }, { text: "辉煌的宫殿，权力的顶端。", scores: { O: 2, D: 3 } }, { text: "充满机械轰鸣声的工坊或实验室。", scores: { L: 3, E: -3 } } ] },
+        { text: "14. 如果 TA 制造混乱，是哪种风格？", options: [ { text: "让人们沉迷于快乐和酒精，忘记理智。", scores: { E: 3, O: -3, L: -2 } }, { text: "引发内心深处最原始的恐惧和惊慌。", scores: { E: -1, O: -2, A: 2 } }, { text: "玩弄情感，让冷静的人变得疯狂。", scores: { E: 2, L: -2, A: 1 } }, { text: "我不制造混乱，我只消除混乱。", scores: { O: 3, L: 2 } } ] },
+        { text: "15. 对于未知的魔法或黑暗力量，TA 的态度？", options: [ { text: "我是这方面的大师，我通过它指引他人。", scores: { L: 3, D: 2, E: -1 } }, { text: "我掌控着它，但我把它深埋地下，不轻易示人。", scores: { D: 3, E: -3, O: 2 } }, { text: "那种东西太阴暗了，我更喜欢阳光和真理。", scores: { E: 3, D: 1, L: 1 } }, { text: "只要能帮我打赢胜仗，什么力量我都用。", scores: { A: 3, L: -1 } } ] },
+        { text: "16. TA 对“美”的理解倾向于？", options: [ { text: "感官的极致诱惑，让人意乱情迷。", scores: { E: 3, L: -2, A: 1 } }, { text: "匀称、和谐、理性的古典之美。", scores: { O: 2, L: 2, E: 2 } }, { text: "功能之美。实用且精密的机械结构才是美。", scores: { L: 3, E: -2, A: 1 } }, { text: "力量之美。强大的肌肉和破坏力。", scores: { A: 3, L: -1 } } ] },
+        { text: "17. 如果 TA 是神，怎么看待普通人类？", options: [ { text: "他们是我的子民，通过统治他们来彰显我的荣耀。", scores: { D: 3, O: 2 } }, { text: "愚蠢但有趣，是我排解无聊的玩具。", scores: { D: 2, E: 1, O: -2 } }, { text: "我不关心蝼蚁的事，别来烦我就行。", scores: { D: 2, E: -3 } }, { text: "我想帮助他们，教导他们技艺和生存。", scores: { A: -2, L: 2, O: 1 } } ] },
+        { text: "18. TA 在成长过程中失去了什么？", options: [ { text: "失去了天真，被迫快速成熟，适应黑暗。", scores: { E: -1, D: 2, O: 1 } }, { text: "失去了自由，被责任重重捆绑。", scores: { O: 2, E: -1 } }, { text: "什么都没失去，我一直都是赢家。", scores: { D: 3, E: 2 } }, { text: "失去了理智，沉沦在疯狂中。", scores: { L: -3, O: -2 } } ] },
+        { text: "19. 如果这是一场比赛，TA 会怎么赢？", options: [ { text: "堂堂正正地赢，我要赢得漂亮。", scores: { D: 2, E: 3, O: 1 } }, { text: "钻规则的空子，或者在终点线前用点小手段。", scores: { L: 3, O: -2, E: 1 } }, { text: "把对手都打趴下，我就赢了。", scores: { A: 3, L: -2 } }, { text: "我不屑于比赛，我自己就是标准。", scores: { D: 3, E: -2 } } ] },
+        { text: "20. 终极一问：TA 最想要的是？", options: [ { text: "Power (无上的权力)", scores: { D: 5, O: 2 } }, { text: "Peace (内心的宁静)", scores: { A: -5, E: -2 } }, { text: "Passion (燃烧的激情)", scores: { E: 5, L: -2 } }, { text: "Truth (世界的真理)", scores: { L: 5, E: -1 } } ] },// ==================== 👇 把它粘在奇幻题库的最后 👇 ====================
+    
+    { 
+        text: "21. 【特辑·生存哲学】只能选一种活法，绝无折中，TA 选？", 
+        options: [ 
+            { text: "🔴 绝对的掌控：做笼子里的王，哪怕没有自由。", scores: { D: 5, O: 3, E: -3 } }, 
+            { text: "🔵 绝对的自由：做旷野里的狗，哪怕饥寒交迫。", scores: { O: -5, E: 3, D: -3 } } 
+        ] 
+    },
+    { 
+        text: "22. 【特辑·红蓝药丸】真相是痛苦的，谎言是幸福的。TA 要哪个？", 
+        options: [ 
+            { text: "💊 红药丸：我要清醒地痛苦，看透世间所有丑恶。", scores: { L: 5, E: -3, A: 1 } }, 
+            { text: "💊 蓝药丸：我要无知地幸福，永远活在美梦里。", scores: { L: -5, E: 3, A: -1 } } 
+        ] 
+    },
+    { 
+        text: "23. 【特辑·道德电车】为了伟大的目标，必须牺牲无辜的少数人，TA 做吗？", 
+        options: [ 
+            { text: "⚔️ 会。成大事者不拘小节，为了大局必须牺牲。", scores: { L: 4, A: 3, O: 2 } }, 
+            { text: "🛡️ 不会。如果连无辜者都保护不了，这目标有什么意义？", scores: { A: -4, O: -2, L: -2 } } 
+        ] 
+    },
+    { 
+        text: "24. 【特辑·胜负观】必须赢下决斗，但对手太强，只有“作弊”能赢。TA 会？", 
+        options: [ 
+            { text: "😈 作弊。历史由胜利者书写，输了就什么都没了。", scores: { O: -4, L: 3, A: 1 } }, 
+            { text: "👑 认输。我的尊严比胜利更重要，我宁愿站着死。", scores: { D: 4, O: 3, L: -3 } } 
+        ] 
+    },
+    { 
+        text: "25. 【特辑·激怒战神】有人当众狠狠扇了 TA 一巴掌，TA 第一秒反应是？", 
+        options: [ 
+            { text: "👊 瞬间反击！把他打到亲妈都不认识！", scores: { A: 5, L: -5 } }, 
+            { text: "👀 忍住/愣住。先分析局势，或者根本不在意蝼蚁。", scores: { L: 4, A: -3 } } 
+        ] 
+    }
+
+    // ==================== 👆 粘贴结束 👆 ====================
+    ];
+
+   // ================= 3. 题库B：现代/都市版 (完整20题) =================
+    const QUESTIONS_MODERN = [
+        { text: "1. 【职场/校园】小组作业明天截止，组员还在摆烂，TA 会？", options: [ { text: "直接接管，一边骂一边通宵自己做完。", scores: { A: 3, O: 1, L: -1 } }, { text: "冷静收集证据，向老师/老板举报，按规矩办事。", scores: { L: 3, O: 3, E: -1 } }, { text: "摆烂谁不会？大不了大家一起挂科，无所谓。", scores: { O: -3, L: -2, E: 1 } }, { text: "默默帮大家补锅，安慰焦虑的组员。", scores: { A: -2, O: 2, D: -2 } } ] },
+        { text: "2. 【社交风格】在嘈杂的 KTV 或夜店局里，TA 是？", options: [ { text: "绝对的麦霸，全场看我！", scores: { E: 3, D: 2 } }, { text: "坐在角落玩手机，有人搭话就礼貌假笑。", scores: { E: -3, L: 1, D: 1 } }, { text: "到处敬酒、加微信的社交达人。", scores: { E: 2, L: 2, O: -1 } }, { text: "负责切水果、倒酒、照顾喝醉的人。", scores: { E: -1, A: -2, O: 2 } } ] },
+        { text: "3. 【金钱观念】如果突然中了一千万彩票，TA 第一件事？", options: [ { text: "投资创业，建立商业帝国。", scores: { D: 3, L: 2, O: 1 } }, { text: "疯狂购物、旅游、买豪车，怎么爽怎么花！", scores: { E: 3, O: -2, L: -1 } }, { text: "存起来，谁也不告诉，财不外露。", scores: { L: 2, E: -2, D: 2 } }, { text: "捐出一部分，或者给家人买房。", scores: { A: -2, O: 2, D: -1 } } ] },
+        { text: "4. 【面对冲突】在网上被无端网暴，TA 怎么处理？", options: [ { text: "顺着网线对骂，必须骂赢为止！", scores: { A: 3, E: 2 } }, { text: "截图取证，发律师函，起诉到底。", scores: { L: 3, O: 2, A: 1 } }, { text: "关掉评论，卸载软件，眼不见心不烦。", scores: { E: -2, D: 1 } }, { text: "阴阳怪气地回复，让对方破防，自己看乐子。", scores: { L: 2, E: 1, O: -1 } } ] },
+        { text: "5. 【感情生活】恋爱中最大的雷点是？", options: [ { text: "对方总是挑战我的决定。", scores: { D: 3, A: 1 } }, { text: "对方太黏人，让我没有自由。", scores: { O: -2, E: -2, A: 1 } }, { text: "无法进行深度的精神交流。", scores: { L: 3, E: -1 } }, { text: "平淡无奇，毫无激情。", scores: { E: 3, L: -2 } } ] },
+        
+        // --- 下面是为你补全的新题目 (对应奇幻版的逻辑) ---
+        { text: "6. 【人生低谷】被裁员/破产，一无所有时，TA 怎么想？", options: [ { text: "我是最棒的，这只是暂时的，我一定会东山再起。", scores: { D: 3, E: 1, A: 1 } }, { text: "发表激情的演说/文章，号召大家不要放弃。", scores: { E: 3, D: 2, O: 1 } }, { text: "利用人脉帮大家找下家，哪怕自己很难。", scores: { A: -3, O: 2, D: -1 } }, { text: "累了，毁灭吧，正好拿着赔偿金去流浪。", scores: { O: -3, L: -1, A: 1 } } ] },
+        { text: "7. 【周末假期】终于放长假了，TA 会怎么过？", options: [ { text: "疯狂加班/考证/健身，只有变强让我安心。", scores: { A: 1, O: 2, L: 1 } }, { text: "约满局！蹦迪、喝酒、剧本杀，通宵嗨起来！", scores: { E: 3, O: -2 } }, { text: "宅在家里看书/打游戏，谁也别联系我。", scores: { E: -2, L: 1 } }, { text: "大扫除，给家里做顿好吃的，撸猫撸狗。", scores: { A: -2, O: 1, E: -1 } } ] },
+        { text: "8. 【绝对底线】触碰了哪一点，TA 会直接拉黑绝交？", options: [ { text: "面子/尊严。让我在公开场合下不来台。", scores: { D: 3, E: 1 } }, { text: "动我的家人/朋友。护短是我的本能。", scores: { A: 2, O: 1, L: -1 } }, { text: "管太宽。不要试图教我做事。", scores: { O: -3, A: 1 } }, { text: "动我的心血（作品/方案/收藏）。", scores: { L: 2, E: -2 } } ] },
+        { text: "9. 【职场复仇】被同事甩锅陷害，TA 怎么反击？", options: [ { text: "当场撕破脸，大闹办公室，谁也别想好过。", scores: { A: 3, L: -1 } }, { text: "表面笑嘻嘻，背地里收集证据，一封邮件送他走人。", scores: { L: 3, A: 1, O: 1 } }, { text: "搞玄学/扎小人，或者精神上通过谣言击垮他。", scores: { D: 2, E: -1, A: 1 } }, { text: "无视他，拉黑他，这种烂人不配影响我心情。", scores: { D: 3, A: -2 } } ] },
+        { text: "10. 【职业理想】如果不考虑钱，TA 最想做什么？", options: [ { text: "总统/行业领袖/制定规则的人。", scores: { D: 3, O: 2 } }, { text: "明星/网红/艺术家，被万人追捧。", scores: { E: 2, A: -1 } }, { text: "科学家/黑客/侦探，探索未知。", scores: { L: 3, E: -1 } }, { text: "自由职业/流浪者，想去哪就去哪。", scores: { O: -2, E: 1 } } ] },
+        { text: "11. 【身后名】退休/离世后，希望大家怎么评价 TA？", options: [ { text: "“他是业界的传奇，不可超越的神话。”", scores: { D: 3, E: 1 } }, { text: "“是个疯子/怪人，但他活得真精彩。”", scores: { O: -2, E: 2 } }, { text: "最好没人记得我，我只想安静地消失。", scores: { E: -3, D: 1 } }, { text: "“因为有他，我们的日子变好过了。”", scores: { A: -2, O: 2 } } ] },
+        { text: "12. 【性格关键词】用一个词形容 TA 的画风？", options: [ { text: "绝对的理智与高冷（高智商反派感）", scores: { L: 5, A: -2 } }, { text: "不可遏制的激情与冲动（热血漫主角感）", scores: { A: 2, E: 3, L: -2 } }, { text: "极致的温柔与包容（治愈系白月光感）", scores: { A: -3, D: -2, O: 2 } }, { text: "无法预测的神秘（哥特风/疯批感）", scores: { D: 2, E: -2, O: -1 } } ] },
+        { text: "13. 【理想住所】如果可以随便选，TA 住哪？", options: [ { text: "市中心顶层大平层，俯瞰全城繁华。", scores: { O: 2, L: 2, E: 1 } }, { text: "深山老林的小木屋，或者荒岛，远离人群。", scores: { O: -2, E: -2, A: 1 } }, { text: "私人庄园/古堡，极尽奢华。", scores: { O: 2, D: 3 } }, { text: "充满科技感的实验室或SOHO工作室。", scores: { L: 3, E: -3 } } ] },
+        { text: "14. 【搞事风格】如果 TA 要在聚会上搞事，会是？", options: [ { text: "带头灌酒、玩大冒险，让大家都疯起来。", scores: { E: 3, O: -3, L: -2 } }, { text: "散布一个惊天大瓜（八卦），看大家惊慌失措。", scores: { E: -1, O: -2, A: 2 } }, { text: "到处撩人，让情侣吵架，看修罗场。", scores: { E: 2, L: -2, A: 1 } }, { text: "我不搞事，我负责收拾烂摊子/买单。", scores: { O: 3, L: 2 } } ] },
+        { text: "15. 【对待潜规则】面对行业内的灰色地带，TA 的态度？", options: [ { text: "我是玩弄规则的大师，我利用它获利。", scores: { L: 3, D: 2, E: -1 } }, { text: "我心知肚明，但我不用，也不说破。", scores: { D: 3, E: -3, O: 2 } }, { text: "太脏了，我坚持用实力和真理说话。", scores: { E: 3, D: 1, L: 1 } }, { text: "只要能赢，黑的白的我都敢用。", scores: { A: 3, L: -1 } } ] },
+        { text: "16. 【审美偏好】TA 的穿搭/审美倾向于？", options: [ { text: "纯欲/性感/华丽，让人移不开眼。", scores: { E: 3, L: -2, A: 1 } }, { text: "极简/性冷淡/高定西装，一丝不苟。", scores: { O: 2, L: 2, E: 2 } }, { text: "机能风/工装/格子衫，实用至上。", scores: { L: 3, E: -2, A: 1 } }, { text: "运动风/皮衣/露肤，展现力量感。", scores: { A: 3, L: -1 } } ] },
+        { text: "17. 【对待下属/粉丝】如果 TA 有很多追随者，TA 会？", options: [ { text: "PUA他们，画饼，让他们为我卖命。", scores: { D: 3, O: 2 } }, { text: "宠粉，但也把他们当乐子看，逗着玩。", scores: { D: 2, E: 1, O: -2 } }, { text: "高冷，保持距离，不想被窥探私生活。", scores: { D: 2, E: -3 } }, { text: "像导师一样，真心教导他们成长。", scores: { A: -2, L: 2, O: 1 } } ] },
+        { text: "18. 【成长的代价】成年人的世界里，TA 失去了什么？", options: [ { text: "失去了天真，变得世故圆滑，哪怕心里不愿意。", scores: { E: -1, D: 2, O: 1 } }, { text: "失去了自由，背上了房贷/家庭的重担。", scores: { O: 2, E: -1 } }, { text: "什么都没失去，我一直是人生赢家。", scores: { D: 3, E: 2 } }, { text: "失去了理智，在欲望/赌局中沉沦。", scores: { L: -3, O: -2 } } ] },
+        { text: "19. 【竞争手段】为了拿到那个唯一的晋升名额，TA 会？", options: [ { text: "靠业绩说话，堂堂正正地碾压对手。", scores: { D: 2, E: 3, O: 1 } }, { text: "找对手的漏洞，举报，或者走后门。", scores: { L: 3, O: -2, E: 1 } }, { text: "把对手斗倒/逼走，名额自然是我的。", scores: { A: 3, L: -2 } }, { text: "不屑于争，此处不留爷自有留爷处。", scores: { D: 3, E: -2 } } ] },
+        { text: "20. 【终极追求】在这个现实世界，TA 到底想要什么？", options: [ { text: "Power (权力/地位/阶级跨越)", scores: { D: 5, O: 2 } }, { text: "Peace (财务自由/内心平静)", scores: { A: -5, E: -2 } }, { text: "Passion (轰轰烈烈的爱/梦想)", scores: { E: 5, L: -2 } }, { text: "Truth (世界的真相/宇宙的尽头)", scores: { L: 5, E: -1 } } ] }
+    ];
+
+    // ================= 4. 逻辑引擎 =================
+    let currentQuestions = [];
+    let currentQ = 0;
+    let userStats = { E: 5, O: 5, A: 5, L: 5, D: 5 };
+
+    function start(mode) {
+        if (mode === 'modern') {
+            currentQuestions = QUESTIONS_MODERN;
+        } else {
+            currentQuestions = QUESTIONS_FANTASY;
+        }
+        
+        currentQ = 0;
+        userStats = { E: 5, O: 5, A: 5, L: 5, D: 5 }; // 重置分数
+        
+        document.getElementById('start-view').classList.add('hidden');
+        document.getElementById('result-view').classList.add('hidden');
+        document.getElementById('quiz-view').classList.remove('hidden');
+        showQ();
+    }
+
+    function showQ() {
+        if (currentQ >= currentQuestions.length) {
+            calcResult();
+            return;
+        }
+        
+        let q = currentQuestions[currentQ];
+        document.getElementById('progress').innerText = `进度 ${currentQ + 1} / ${currentQuestions.length}`;
+        document.getElementById('question-text').innerText = q.text;
+        
+        let box = document.getElementById('options-box');
+        box.innerHTML = '';
+
+        q.options.forEach(opt => {
+            let btn = document.createElement('button');
+            btn.className = 'btn';
+            btn.innerHTML = opt.text; // 允许HTML标签
+            btn.onclick = () => {
+                // 计分
+                if (opt.scores) {
+                    for (let key in opt.scores) {
+                        userStats[key] += opt.scores[key];
+                        if(userStats[key] > 10) userStats[key] = 10;
+                        if(userStats[key] < 0) userStats[key] = 0;
+                    }
+                }
+                currentQ++;
+                showQ();
+            };
+            box.appendChild(btn);
+        });
+    }
+
+  function calcResult() {
+        document.getElementById('quiz-view').classList.add('hidden');
+        document.getElementById('result-view').classList.remove('hidden');
+
+        // 1. 算出所有神与用户的差距
+        let scoredGods = GODS.map(god => {
+            let diff = 
+                Math.pow(userStats.E - god.stats.E, 2) +
+                Math.pow(userStats.O - god.stats.O, 2) +
+                Math.pow(userStats.A - god.stats.A, 2) +
+                Math.pow(userStats.L - god.stats.L, 2) +
+                Math.pow(userStats.D - god.stats.D, 2);
+            return { god: god, diff: diff };
+        });
+
+        // 2. 按差距从小到大排序 (差距越小越准)
+        scoredGods.sort((a, b) => a.diff - b.diff);
+
+        // 3. 【核心修改】防撞车逻辑
+        let bestGod = null;
+        let top1 = scoredGods[0];
+        let top2 = scoredGods[1];
+
+        // 如果第一名和第二名差距非常小 (比如小于 15)，系统纠结了
+        if (top2 && (top2.diff - top1.diff < 15)) {
+            // 扔个硬币：40% 的概率让第二名上位，增加多样性
+            if (Math.random() > 0.6) {
+                bestGod = top2.god; 
+                console.log("触发随机：第二名逆袭！");
+            } else {
+                bestGod = top1.god;
+            }
+        } else {
+            // 差距很大，就选第一名
+            bestGod = top1.god;
+        }
+
+        // --- 4. 显示结果 (和之前一样) ---
+        document.getElementById('god-name').innerText = bestGod.name;
+        document.getElementById('god-title').innerText = bestGod.title;
+        document.getElementById('god-desc').innerText = bestGod.desc;
+        
+        if (bestGod.story) {
+            document.getElementById('god-story').innerText = bestGod.story;
+        } else {
+            document.getElementById('god-story').innerText = "该神祇的神话纪事正在编写中...";
+        }
+
+        if (bestGod.pic) {
+            let img = document.getElementById('god-image');
+            img.src = bestGod.pic;
+            img.style.display = 'block';
+            document.getElementById('god-image-placeholder').style.display = 'none';
+        }
+
+        // 画图表
+        if(typeof drawRadarChart === "function") {
+            drawRadarChart();
+        }
+        
+        // 调试
+        document.getElementById('debug-info').innerHTML = 
+            `E:${userStats.E} | O:${userStats.O} | A:${userStats.A} | L:${userStats.L} | D:${userStats.D}`;
+            // ... (前面的代码不用动) ...
+
+        // 👇 这一句加在 calcResult 函数结束之前！
+        drawRadarChart();
+        
+    } // <--- 这是 calcResult 的结束大括号
+    
+    // ================= 5. 雷达图绘制引擎 (把这段放在代码最后) =================
+    let myRadarChart = null; // 用来存图表实例
+
+    function drawRadarChart() {
+        // 1. 获取画布
+        const ctx = document.getElementById('radarChart');
+        if (!ctx) return; // 如果找不到画布就跳过，防止报错
+
+        // 2. 如果之前画过，先销毁旧的（防止重影）
+        if (myRadarChart) {
+            myRadarChart.destroy();
+        }
+
+        // 3. 开始画图
+        myRadarChart = new Chart(ctx, {
+            type: 'radar', // 图表类型：雷达图
+            data: {
+                // 五个角的标签
+                labels: ['表现 (E)', '秩序 (O)', '攻击 (A)', '理智 (L)', '气场 (D)'],
+                datasets: [{
+                    label: '能力维度',
+                    // 数据来源：你的 userStats 变量
+                    data: [userStats.E, userStats.O, userStats.A, userStats.L, userStats.D],
+                    
+                    // 样式设置：金色边框，半透明填充
+                    borderColor: 'rgba(236, 201, 75, 1)',
+                    borderWidth: 2,
+                    backgroundColor: 'rgba(236, 201, 75, 0.2)',
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#ecc94b',
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(255, 255, 255, 0.1)' }, // 轴线颜色
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' },      // 网格颜色
+                        pointLabels: { 
+                            color: '#cbd5e1', // 文字颜色
+                            font: { size: 10 } 
+                        },
+                        ticks: { display: false, maxTicksLimit: 5 }, // 隐藏刻度数字
+                        suggestedMin: 0,
+                        suggestedMax: 10
+                    }
+                },
+                plugins: {
+                    legend: { display: false } // 隐藏图例
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
