@@ -47,6 +47,12 @@
         </div>
         <h2 id="question-text" style="font-size:20px; margin-bottom:30px; font-weight: normal;">题目加载中...</h2>
         <div id="options-box"></div>
+        <div id="options-box"></div>
+        
+        <button id="prev-btn" class="btn" style="background: transparent; border: 1px dashed #4a5568; color: #718096; margin-top: 20px; font-size: 14px;" onclick="prevQ()">
+            ⬅️ 返回上一题 (Undo)
+        </button>
+        </div>
     </div>
 
     <div id="result-view" class="card hidden" style="text-align: center;">
@@ -186,7 +192,8 @@
     let currentQuestions = [];
     let currentQ = 0;
     let userStats = { E: 5, O: 5, A: 5, L: 5, D: 5 };
-
+    
+    let historyStack = []; // 👈 【新增】这里加一行，用来存历史记录
     function start(mode) {
         if (mode === 'modern') {
             currentQuestions = QUESTIONS_MODERN;
@@ -196,6 +203,7 @@
         
         currentQ = 0;
         userStats = { E: 5, O: 5, A: 5, L: 5, D: 5 }; // 重置分数
+         historyStack = [];
         
         document.getElementById('start-view').classList.add('hidden');
         document.getElementById('result-view').classList.add('hidden');
@@ -203,11 +211,20 @@
         showQ();
     }
 
-    function showQ() {
+   function showQ() {
         if (currentQ >= currentQuestions.length) {
             calcResult();
             return;
         }
+
+        // --- 👇 【新增】控制返回按钮显示/隐藏 ---
+        let prevBtn = document.getElementById('prev-btn');
+        if (currentQ === 0) {
+            prevBtn.style.display = 'none'; // 第一题藏起来
+        } else {
+            prevBtn.style.display = 'block'; // 后面显示出来
+        }
+        // ------------------------------------
         
         let q = currentQuestions[currentQ];
         document.getElementById('progress').innerText = `进度 ${currentQ + 1} / ${currentQuestions.length}`;
@@ -219,9 +236,14 @@
         q.options.forEach(opt => {
             let btn = document.createElement('button');
             btn.className = 'btn';
-            btn.innerHTML = opt.text; // 允许HTML标签
+            btn.innerHTML = opt.text; 
             btn.onclick = () => {
-                // 计分
+                
+                // 👇 【关键修改】计分前，先给当前分数拍个照存起来！
+                // (这样点返回的时候，才能恢复到现在的样子)
+                historyStack.push({ ...userStats }); 
+                
+                // 计分逻辑 (你原来的代码)
                 if (opt.scores) {
                     for (let key in opt.scores) {
                         userStats[key] += opt.scores[key];
@@ -236,6 +258,19 @@
         });
     }
 
+    // 👈 【新增】这是“返回上一题”的专用函数
+    function prevQ() {
+        if (currentQ > 0) {
+            currentQ--; // 题号倒退
+            
+            // 恢复分数！(把刚才存的最后一次记录取出来，覆盖现在的分数)
+            if (historyStack.length > 0) {
+                userStats = historyStack.pop();
+            }
+            
+            showQ(); // 重新显示上一题
+        }
+    }
   function calcResult() {
         document.getElementById('quiz-view').classList.add('hidden');
         document.getElementById('result-view').classList.remove('hidden');
@@ -363,5 +398,4 @@
 </script>
 
 </body>
-
 </html>
